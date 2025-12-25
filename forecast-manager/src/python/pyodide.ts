@@ -23,24 +23,44 @@ export async function initPyodide(
 
   initializationPromise = (async () => {
     try {
-      onProgress?.('Loading Pyodide...');
-      const pyodide = await loadPyodide({
-        indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/',
-      });
+      onProgress?.('Loading Pyodide... (this may take 30-60 seconds)');
 
-      onProgress?.('Loading packages: pandas, numpy, matplotlib...');
-      await pyodide.loadPackage(['pandas', 'numpy', 'matplotlib']);
+      // Try with timeout
+      const pyodide = await Promise.race([
+        loadPyodide({
+          indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/',
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Pyodide load timeout - please check your internet connection')), 120000)
+        ),
+      ]);
 
-      onProgress?.('Installing Prophet...');
-      await pyodide.runPythonAsync(`
-        import micropip
-        await micropip.install('prophet')
-      `);
+      onProgress?.('Loading packages: pandas, numpy...');
+      await pyodide.loadPackage(['pandas', 'numpy']);
+
+      onProgress?.('Loading matplotlib...');
+      try {
+        await pyodide.loadPackage(['matplotlib']);
+      } catch (e) {
+        console.warn('matplotlib load failed, continuing without it:', e);
+      }
+
+      onProgress?.('Installing Prophet (optional)...');
+      try {
+        await pyodide.runPythonAsync(`
+          import micropip
+          await micropip.install('prophet')
+        `);
+      } catch (e) {
+        console.warn('Prophet install failed, continuing without it:', e);
+        onProgress?.('Prophet install skipped - some features may be limited');
+      }
 
       onProgress?.('Pyodide ready!');
       pyodideInstance = pyodide;
       return pyodide;
     } catch (error) {
+      console.error('Pyodide initialization error:', error);
       initializationPromise = null;
       throw error;
     }
