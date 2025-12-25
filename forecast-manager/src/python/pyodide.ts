@@ -25,11 +25,9 @@ export async function initPyodide(
     try {
       onProgress?.('Loading Pyodide... (this may take 30-60 seconds)');
 
-      // Try with timeout
+      // Try with timeout - use default indexURL to match installed version
       const pyodide = await Promise.race([
-        loadPyodide({
-          indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/',
-        }),
+        loadPyodide(),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Pyodide load timeout - please check your internet connection')), 120000)
         ),
